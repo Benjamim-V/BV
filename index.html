@@ -3,23 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SGE - AE Augusto Cabrita</title>
-    
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="SGE Portal">
+    <title>SGE - Portal do Aluno</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     
     <style>
+        /* [Mantendo os seus estilos CSS originais que são excelentes] */
         :root { --primary: #1a237e; --bg: #f4f7fc; --danger: #ff5252; --success: #4caf50; --border-blue: #3f51b5; }
         body { background: var(--bg); margin: 0; font-family: 'Poppins', sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
         header { padding: 15px; display: flex; align-items: center; background: white; border-bottom: 1px solid #eee; width: 100%; box-sizing: border-box; position: sticky; top: 0; z-index: 100; }
         .avatar-circle { width: 45px; height: 45px; background: var(--primary); color: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 12px; font-size: 18px; }
         #interface-aluno { display: none; width: 100%; max-width: 480px; padding: 10px 0 40px 0; }
-        #tela-login { position: fixed; inset: 0; background: var(--primary); z-index: 1000; display: none; align-items: center; justify-content: center; }
+        #tela-login { position: fixed; inset: 0; background: var(--primary); z-index: 1000; display: flex; align-items: center; justify-content: center; }
         .card { background: white; border-radius: 25px; padding: 20px; margin: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05); }
         .bloqueio-wrapper { background: var(--border-blue); padding: 20px; border-radius: 35px; margin: 15px; min-height: 180px; display: flex; align-items: center; }
         .bloqueio-inner { background: #e0e0e0; width: 100%; border-radius: 25px; display: flex; flex-direction: column; align-items: center; padding: 30px 10px; }
@@ -37,12 +35,9 @@
         .btn-periodo { flex: 1; padding: 10px 2px; border: 1px solid #eee; background: white; border-radius: 10px; font-size: 11px; cursor: pointer; }
         .btn-periodo.active { background: var(--primary); color: white; }
         .chart-container { height: 280px; width: 100%; margin-top: 10px; }
-
         .radar-container { display: none; position: relative; width: 100px; height: 100px; margin: 15px auto; }
         .radar-sweep { width: 100%; height: 100%; border-radius: 50%; border: 2px solid #fff; background: conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.4) 50%, #ffd600 100%); animation: radar-spin 2s linear infinite; }
-        .radar-sweep.success-pulse { background: conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.4) 50%, #4caf50 100%); box-shadow: 0 0 15px #4caf50; }
         @keyframes radar-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        #msg-distancia { font-weight: bold; margin-top: 10px; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -50,9 +45,10 @@
 <div id="tela-login">
     <div class="login-box">
         <h2 style="color:var(--primary); margin:0">Portal SGE</h2>
+        <p style="font-size: 11px; color: #666;">Use o seu email e nº de estudante</p>
         <input type="email" id="login-email" placeholder="Email">
-        <input type="password" id="login-pass" placeholder="Senha/Nº Estudante">
-        <button onclick="fazerLogin()" style="width:100%; padding:14px; background:var(--primary); color:white; border:none; border-radius:10px; font-weight:bold; cursor:pointer;">Entrar</button>
+        <input type="password" id="login-pass" placeholder="Senha (Nº Estudante)">
+        <button onclick="fazerLogin()" id="btn-entrar" style="width:100%; padding:14px; background:var(--primary); color:white; border:none; border-radius:10px; font-weight:bold; cursor:pointer;">Entrar</button>
     </div>
 </div>
 
@@ -61,9 +57,9 @@
         <div class="avatar-circle" id="avatar">?</div>
         <div>
             <div id="nome-perfil" style="font-weight:600">...</div>
-            <div style="font-size:10px; color:#888;">AE AUGUSTO CABRITA</div>
+            <div id="numero-perfil" style="font-size:10px; color:#888;">Carregando...</div>
         </div>
-        <button onclick="fazerLogout()" style="margin-left:auto; color:var(--danger); border:none; background:none; font-weight:bold;">Sair</button>
+        <button onclick="fazerLogout()" style="margin-left:auto; color:var(--danger); border:none; background:none; font-weight:bold; cursor:pointer;">Sair</button>
     </header>
 
     <div id="area-scanner"></div>
@@ -75,9 +71,8 @@
     <div class="card">
         <div class="btn-group">
             <button class="btn-periodo" id="btn-diario" onclick="mudarPeriodo('diario')">Hoje</button>
-            <button class="btn-periodo" id="btn-semanal" onclick="mudarPeriodo('semanal')">Semana</button>
             <button class="btn-periodo active" id="btn-mensal" onclick="mudarPeriodo('mensal')">Mês</button>
-            <button class="btn-periodo" id="btn-anual" onclick="mudarPeriodo('anual')">Ano</button>
+            <button class="btn-periodo" id="btn-anual" onclick="mudarPeriodo('anual')">Total</button>
         </div>
         <div class="stats-grid">
             <div class="stat-box"><h3 id="stat-assistido">0</h3><span style="font-size:9px">Min. Assistidos</span></div>
@@ -87,136 +82,168 @@
     </div>
 </div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getDatabase, ref, get, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+<script>
+// CONFIGURAÇÃO SUPABASE
+const SUPABASE_URL = "https://ckfnrxtnhqjmnizxhmhz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_306amQ_hMAgdqOu3AzZI6A_VPyYzD5U";
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-emailjs.init("2p84xXlPeKca8Gpqy");
-const firebaseConfig = { apiKey: "AIzaSyCZ1pSs0SP5LGC21CW8kGsM0iXNfgZaSUo", authDomain: "efpinscri-lunda-sul.firebaseapp.com", databaseURL: "https://efpinscri-lunda-sul-default-rtdb.firebaseio.com", projectId: "efpinscri-lunda-sul", appId: "1:76741833587:web:1b3052770218fb70dc8b06" };
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-const auth = getAuth(app);
-
+// Configurações de Negócio
 const DURACAO_AULA = 50;
 const ESCOLA_LAT = 38.657073; 
 const ESCOLA_LON = -9.058417;
-const RAIO_PERIMETRO = 120;
+const RAIO_PERIMETRO = 150;
 
-let chart, dadosAluno = null, todosRegistos = [], periodoAtual = 'mensal';
+let chart, usuarioAtual = null, todosRegistos = [], periodoAtual = 'mensal';
 
-function tocarSom(tipo) {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator(); const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    if(tipo === 'bip') { osc.frequency.setValueAtTime(880, ctx.currentTime); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.1); }
-    else { osc.frequency.setValueAtTime(523, ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(1046, ctx.currentTime + 0.3); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.3); }
+// Inicialização e Auth
+async function checarSessao() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+        carregarDadosUsuario(session.user.id);
+    } else {
+        document.getElementById('tela-login').style.display = 'flex';
+        document.getElementById('interface-aluno').style.display = 'none';
+    }
 }
 
-function gerarChaveEmail(email) {
-    if (!email) return "";
-    return email.toLowerCase()
-                .trim()
-                .replace(/\./g, "_")
-                .replace(/@/g, "_")
-                .replace(/[.#$[\]/]/g, "_");
+async function fazerLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const pass = document.getElementById('login-pass').value;
+    const btn = document.getElementById('btn-entrar');
+    
+    btn.innerText = "A autenticar...";
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+
+    if (error) {
+        alert("Erro: " + error.message);
+        btn.innerText = "Entrar";
+    } else {
+        location.reload();
+    }
 }
-function calcularDistancia(lat1, lon1, lat2, lon2) { const R = 6371e3; const dLat = (lat2-lat1)*Math.PI/180; const dLon = (lon2-lon1)*Math.PI/180; const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2; return Math.round(R*(2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)))); }
 
-window.fazerLogin = () => { const e = document.getElementById('login-email').value.trim(); const p = document.getElementById('login-pass').value; signInWithEmailAndPassword(auth, e, p).catch(() => alert("Dados Inválidos.")); };
-window.fazerLogout = () => signOut(auth).then(() => { localStorage.clear(); location.reload(); });
+async function carregarDadosUsuario(authId) {
+    // Buscar perfil na tabela 'users' usando o auth_uid
+    const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', (await supabase.auth.getUser()).data.user.email)
+        .single();
 
-onAuthStateChanged(auth, async user => {
-    if(user) {
-        const uID = gerarChaveEmail(user.email);
-        get(ref(db, `users/${uID}`)).then(snap => {
-            const u = snap.val();
-            if (u && u.role.toLowerCase() === "aluno") {
-                dadosAluno = u; dadosAluno.idFormatado = uID;
-                document.getElementById('nome-perfil').innerText = u.nome;
-                document.getElementById('avatar').innerText = u.nome.charAt(0).toUpperCase();
-                document.getElementById('tela-login').style.display = 'none';
-                document.getElementById('interface-aluno').style.display = 'block';
-                verificarBloqueio(); ouvirDados();
+    if (user) {
+        usuarioAtual = user;
+        document.getElementById('nome-perfil').innerText = user.nome;
+        document.getElementById('numero-perfil').innerText = "Nº " + user.numero;
+        document.getElementById('avatar').innerText = user.nome.charAt(0).toUpperCase();
+        document.getElementById('tela-login').style.display = 'none';
+        document.getElementById('interface-aluno').style.display = 'block';
+        
+        verificarBloqueio();
+        carregarHistorico();
+    }
+}
+
+async function carregarHistorico() {
+    const { data } = await supabase
+        .from('presencas')
+        .select('*')
+        .eq('aluno_id', usuarioAtual.id)
+        .order('created_at', { ascending: false });
+
+    if (data) {
+        todosRegistos = data;
+        const discSet = new Set(data.map(r => r.disciplina));
+        const select = document.getElementById('filtro-disciplina');
+        select.innerHTML = '<option value="todas">Todas as Disciplinas</option>';
+        discSet.forEach(d => select.innerHTML += `<option value="${d}">${d}</option>`);
+        atualizarEstatisticas();
+    }
+}
+
+// Lógica do Scanner e GPS
+window.iniciarCamera = function() {
+    const radarCont = document.getElementById('radar-gps');
+    radarCont.style.display = 'block';
+    
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+        const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, ESCOLA_LAT, ESCOLA_LON);
+        
+        if (dist > RAIO_PERIMETRO) {
+            radarCont.style.display = 'none';
+            return alert(`Estás fora da escola (${dist}m). Aproxima-te mais.`);
+        }
+
+        radarCont.style.display = 'none';
+        document.getElementById('reader').style.display = 'block';
+        
+        const html5 = new Html5Qrcode("reader");
+        html5.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, async (txt) => {
+            const [disc, aulaId, hRef] = txt.split('|');
+            await html5.stop();
+            
+            const agora = new Date();
+            const hAtual = agora.getHours().toString().padStart(2,'0') + ":" + agora.getMinutes().toString().padStart(2,'0');
+            const atr = calcularAtraso(hRef, hAtual);
+            const status = atr > 15 ? "Atraso" : "Presente";
+
+            const { error } = await supabase.from('presencas').insert([{
+                aluno_id: usuarioAtual.id,
+                aula_id: aulaId || null,
+                disciplina: disc,
+                nome_aluno: usuarioAtual.nome,
+                status: status,
+                minutos_atraso: atr,
+                data: new Date().toISOString()
+            }]);
+
+            if (!error) {
+                localStorage.setItem(`lastScan_${usuarioAtual.id}`, Date.now().toString());
+                location.reload();
+            } else {
+                alert("Erro ao registar: " + error.message);
             }
         });
-    } else { document.getElementById('tela-login').style.display = 'flex'; }
-});
+    }, () => alert("Ativa o GPS para validar a presença."), { enableHighAccuracy: true });
+};
+
+// Utilitários
+function calcularDistancia(lat1, lon1, lat2, lon2) {
+    const R = 6371e3;
+    const dLat = (lat2-lat1)*Math.PI/180;
+    const dLon = (lon2-lon1)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    return Math.round(R*(2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))));
+}
+
+function calcularAtraso(h1, h2) {
+    if(!h1 || !h2) return 0;
+    const [h1h, h1m] = h1.split(':').map(Number);
+    const [h2h, h2m] = h2.split(':').map(Number);
+    return Math.max(0, (h2h*60+h2m)-(h1h*60+h1m));
+}
 
 function verificarBloqueio() {
-    const last = localStorage.getItem(`lastScan_${dadosAluno.idFormatado}`);
+    const last = localStorage.getItem(`lastScan_${usuarioAtual.id}`);
     if (last) {
         const diff = Math.floor((Date.now() - parseInt(last)) / 60000);
         if (diff < DURACAO_AULA) {
-            document.getElementById('area-scanner').innerHTML = `<div class="bloqueio-wrapper"><div class="bloqueio-inner"><div class="camera-txt">Bloqueada</div><div class="minutos-alerta">Aguarde ${DURACAO_AULA-diff} min</div></div></div>`;
+            document.getElementById('area-scanner').innerHTML = `<div class="bloqueio-wrapper"><div class="bloqueio-inner"><div class="camera-txt">Registado</div><div class="minutos-alerta">Próxima aula em ${DURACAO_AULA-diff} min</div></div></div>`;
             return;
         }
     }
-    renderizarScannerAtivo();
-}
-
-function renderizarScannerAtivo() {
     document.getElementById('area-scanner').innerHTML = `
-        <div class="scanner-card-active" onclick="window.iniciarCamera()">
+        <div class="scanner-card-active" onclick="iniciarCamera()">
             <div id="label-scan">📸 <b>REGISTAR PRESENÇA</b></div>
             <div id="radar-gps" class="radar-container"><div class="radar-sweep"></div></div>
-            <div id="msg-distancia"></div>
             <div id="reader"></div>
         </div>`;
 }
 
-window.iniciarCamera = async function() {
-    const label = document.getElementById('label-scan'), radarCont = document.getElementById('radar-gps'), sweep = document.querySelector('.radar-sweep'), msg = document.getElementById('msg-distancia');
-    label.style.display = 'none'; radarCont.style.display = 'block'; msg.innerHTML = "📡 A localizar...";
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-        const d = calcularDistancia(pos.coords.latitude, pos.coords.longitude, ESCOLA_LAT, ESCOLA_LON);
-        sweep.classList.add('success-pulse'); msg.innerHTML = `✅ Localizado: ${d}m`; tocarSom('bip');
-        setTimeout(async () => {
-            if (d > RAIO_PERIMETRO) { radarCont.style.display = 'none'; label.style.display = 'block'; return alert(`Fora do alcance: ${d}m.`); }
-            radarCont.style.display = 'none'; document.getElementById('reader').style.display = 'block';
-            const html5 = new Html5Qrcode("reader");
-            html5.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, async (txt) => {
-                const [disc, , hRef] = txt.split('|');
-                const agora = new Date(), hAtual = agora.getHours().toString().padStart(2,'0') + ":" + agora.getMinutes().toString().padStart(2,'0');
-                await html5.stop();
-                const atr = calcularAtraso(hRef, hAtual), status = atr > 10 ? "Atraso" : "Presente";
-                await push(ref(db, `2026/registos_presenca`), { alunoId: dadosAluno.idFormatado, nomeAluno: dadosAluno.nome, disciplina: disc, data: agora.toLocaleString('pt-PT'), status_presenca: status, minutos_atraso: atr, timestamp: serverTimestamp() });
-                emailjs.send("service_dadz9c2", "template_x7cm0q7", { to_email: dadosAluno.email_encarregado || dadosAluno.email, nome_aluno: dadosAluno.nome, disciplina: disc, data_hora: agora.toLocaleString('pt-PT'), status_presenca: status, minutos_atraso: atr });
-                tocarSom('sucesso'); localStorage.setItem(`lastScan_${dadosAluno.idFormatado}`, Date.now().toString());
-                location.reload();
-            });
-        }, 800);
-    }, () => { radarCont.style.display = 'none'; label.style.display = 'block'; alert("Ative o GPS."); }, { enableHighAccuracy: true });
-};
-
-function calcularAtraso(h1, h2) { if(!h1 || !h2) return 0; const [h1h, h1m] = h1.split(':').map(Number), [h2h, h2m] = h2.split(':').map(Number); return Math.max(0, (h2h*60+h2m)-(h1h*60+h1m)); }
-
-function ouvirDados() {
-    onValue(ref(db, `2026/registos_presenca`), (snap) => {
-        if(snap.exists()){
-            todosRegistos = Object.values(snap.val()).filter(r => r.alunoId === dadosAluno.idFormatado);
-            const discSet = new Set(todosRegistos.map(r => r.disciplina));
-            const select = document.getElementById('filtro-disciplina');
-            select.innerHTML = '<option value="todas">Todas as Disciplinas</option>';
-            discSet.forEach(d => select.innerHTML += `<option value="${d}">${d}</option>`);
-            atualizarEstatisticas();
-        }
-    });
-}
-
-window.mudarPeriodo = (p) => { periodoAtual = p; document.querySelectorAll('.btn-periodo').forEach(b => b.classList.toggle('active', b.id === 'btn-'+p)); atualizarEstatisticas(); };
-
+// Estatísticas (Chart.js)
 window.atualizarEstatisticas = () => {
     const discF = document.getElementById('filtro-disciplina').value;
-    const agora = Date.now();
-    const filtrados = todosRegistos.filter(r => {
-        const diff = (agora - r.timestamp) / 86400000;
-        const bateD = discF === 'todas' || r.disciplina === discF;
-        if (periodoAtual === 'diario') return diff < 1 && bateD;
-        if (periodoAtual === 'semanal') return diff <= 7 && bateD;
-        if (periodoAtual === 'mensal') return diff <= 30 && bateD;
-        return bateD;
-    });
+    const filtrados = todosRegistos.filter(r => discF === 'todas' || r.disciplina === discF);
 
     const totalAtr = filtrados.reduce((acc, r) => acc + (r.minutos_atraso || 0), 0);
     const totalAssis = (filtrados.length * DURACAO_AULA) - totalAtr;
@@ -229,78 +256,27 @@ window.atualizarEstatisticas = () => {
 function desenharGrafico(dados, assis, atr) {
     const ctx = document.getElementById('performanceChart').getContext('2d');
     if(chart) chart.destroy();
-
-    if(periodoAtual === 'diario') {
-        chart = new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels: ['Assistidos (min)', 'Atrasos (min)'],
-                datasets: [{ 
-                    data: [assis, atr], 
-                    backgroundColor: ['#4caf50', '#ff5252'],
-                    borderColor: '#ffffff',
-                    borderWidth: 2
-                }]
-            },
-            options: { 
-                responsive: true, 
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: true, position: 'bottom' }
-                }
-            }
-        });
-    } else {
-        chart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: dados.map(d => d.data.substring(0, 5)),
-                datasets: [{ 
-                    label: 'Minutos Atraso', 
-                    data: dados.map(r => r.minutos_atraso), 
-                    borderColor: '#1a237e', 
-                    backgroundColor: 'rgba(26, 35, 126, 0.1)',
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 5,
-                    pointBackgroundColor: dados.map(r => r.minutos_atraso > 10 ? '#ff5252' : '#4caf50')
-                }]
-            },
-            options: { 
-                responsive: true, 
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { 
-                        display: true, 
-                        labels: {
-                            generateLabels: (chart) => {
-                                return [
-                                    { text: 'Assistidos (min)', fillStyle: '#4caf50', strokeStyle: '#4caf50', lineWidth: 0 },
-                                    { text: 'Atrasos (min)', fillStyle: '#ff5252', strokeStyle: '#ff5252', lineWidth: 0 }
-                                ];
-                            }
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            title: (context) => `Data: ${dados[context[0].dataIndex].data}`,
-                            label: (context) => {
-                                const r = dados[context.dataIndex];
-                                return [
-                                    `Matéria: ${r.disciplina}`,
-                                    `Atraso: ${r.minutos_atraso} min`
-                                ];
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: { beginAtZero: true, title: { display: true, text: 'Minutos' } }
-                }
-            }
-        });
-    }
+    
+    chart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Assistido', 'Atraso'],
+            datasets: [{
+                data: [assis, atr],
+                backgroundColor: ['#4caf50', '#ff5252'],
+                borderWidth: 0
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
 }
+
+async function fazerLogout() {
+    await supabase.auth.signOut();
+    location.reload();
+}
+
+checarSessao();
 </script>
 </body>
 </html>
