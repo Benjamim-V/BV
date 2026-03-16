@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SGE - Dashboard Professor 2026</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        :root { --primary: #1a237e; --secondary: #7b1fa2; --success: #2e7d32; --danger: #d32f2f; --warning: #ff9800; --bg: #f0f2f5; }
+        body { background: var(--bg); margin: 0; font-family: 'Poppins', sans-serif; font-size: 13px; }
+        .top-bar { background: var(--primary); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .dashboard { display: grid; grid-template-columns: 340px 1fr; gap: 20px; padding: 20px; max-width: 1400px; margin: auto; }
+        .card { background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #e0e0e0; }
+        .card-title { font-weight: 600; color: var(--primary); margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+        .row-paralelo { display: flex; gap: 10px; margin-bottom: 10px; }
+        .col { flex: 1; display: flex; flex-direction: column; }
+        label { font-size: 10px; font-weight: 600; color: #666; margin-bottom: 4px; }
+        input, select { padding: 9px; border: 1px solid #ddd; border-radius: 6px; width: 100%; font-size: 12px; }
+        .btn-primario { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; }
+        .btn-finalizar { background: var(--danger); color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 8px; display: none; }
+        .btn-manual { background: var(--success); color: white; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 5px; }
+        #qrcode { background: #f9f9f9; padding: 10px; border-radius: 8px; display: flex; justify-content: center; align-items: center; border: 2px dashed #ccc; min-height: 160px; }
+        .timer-cont { width: 100%; height: 5px; background: #eee; margin-top: 10px; border-radius: 10px; overflow: hidden; }
+        #timer-fill { height: 100%; background: var(--secondary); width: 100%; transition: width 1s linear; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; border-bottom: 2px solid #eee; background: #f8f9fa; }
+        td { padding: 12px; border-bottom: 1px solid #f0f0f0; }
+        .st-badge { padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+        .st-presente { background: #e8f5e9; color: var(--success); }
+        .st-atraso { background: #fff3e0; color: var(--warning); }
+    </style>
+</head>
+<body>
+
+<div class="top-bar">
+    <div>
+        <span style="font-weight:bold;">SGE - ÁREA DO DOCENTE</span><br>
+        <small id="prof-nome">Autenticando...</small>
+    </div>
+    <div>
+        <span id="prof-email" style="font-size:11px; margin-right: 15px;">---</span>
+        <button id="btn-sair" style="background:transparent; border:1px solid white; color:white; cursor:pointer; padding:4px 10px; border-radius:4px;">Sair</button>
+    </div>
+</div>
+
+<div class="dashboard">
+    <div class="sidebar">
+        <div class="card">
+            <div class="card-title">🕒 Configuração da Aula</div>
+            <div class="row-paralelo">
+                <div class="col">
+                    <label>DISCIPLINA</label>
+                    <select id="aula-disc"><option value="">Carregando...</option></select>
+                </div>
+                <div class="col">
+                    <label>SALA</label>
+                    <select id="aula-sala">
+                        <option value="Sala 01">Sala 01</option>
+                        <option value="Sala 02">Sala 02</option>
+                        <option value="Lab 01">Lab 01</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row-paralelo">
+                <div class="col">
+                    <label>HORA INÍCIO</label>
+                    <input type="time" id="h-inicio">
+                </div>
+                <div class="col">
+                    <label>TOLERÂNCIA (MIN)</label>
+                    <input type="number" id="tolerancia" value="15">
+                </div>
+            </div>
+            <button id="btn-iniciar" class="btn-primario">GERAR QR CODE</button>
+            <button id="btn-finalizar" class="btn-finalizar">ENCERRAR AULA</button>
+        </div>
+
+        <div class="card">
+            <div class="card-title">✍️ Presença Manual</div>
+            <label>SELECIONAR ALUNO</label>
+            <select id="aluno-manual"><option value="">Carregando...</option></select>
+            <button id="btn-lancar-manual" class="btn-manual">REGISTAR PRESENÇA</button>
+        </div>
+
+        <div class="card" style="text-align:center;">
+            <div class="card-title">📱 QR Code Dinâmico</div>
+            <div id="qrcode"><span>Aguardando...</span></div>
+            <div class="timer-cont"><div id="timer-fill"></div></div>
+            <div id="token-val" style="font-weight:bold; margin-top:10px; font-size:24px; color:var(--secondary);">---</div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="card">
+            <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>👥 Presenças em Tempo Real</span>
+                <input type="date" id="filtro-data" style="width: auto;">
+            </div>
+            <table id="tabela-presencas">
+                <thead>
+                    <tr>
+                        <th>Aluno</th>
+                        <th>Entrada</th>
+                        <th>Status</th>
+                        <th>Atraso</th>
+                        <th>Segurança</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-alunos"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getDatabase, ref, get, set, push, onValue, child } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCZ1pSs0SP5LGC21CW8kGsM0iXNfgZaSUo",
+        authDomain: "efpinscri-lunda-sul.firebaseapp.com",
+        databaseURL: "https://efpinscri-lunda-sul-default-rtdb.firebaseio.com",
+        projectId: "efpinscri-lunda-sul",
+        appId: "1:76741833587:web:1b3052770218fb70dc8b06"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    let intervaloToken;
+    let listaAlunosCache = [];
+
+    // --- SEGURANÇA E LOGIN (VERSÃO 10) ---
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            const snap = await get(ref(db, `users/${user.uid}`));
+            const data = snap.val();
+            // Aplica a correção de tipo/role e lowercase
+            const cargo = (data?.tipo || data?.role || "").toLowerCase();
+
+            if (cargo !== 'professor') {
+                alert("Acesso Negado: Área Restrita a Professores.");
+                window.location.href = "alunologin.html";
+                return;
+            }
+
+            // Se for professor, carrega os dados
+            document.getElementById('prof-nome').innerText = data.nome;
+            document.getElementById('prof-email').innerText = user.email;
+            carregarDadosIniciais();
+        } else {
+            window.location.href = "alunologin.html";
+        }
+    });
+
+    function carregarDadosIniciais() {
+        document.getElementById('filtro-data').valueAsDate = new Date();
+        document.getElementById('h-inicio').value = new Date().toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'});
+
+        // Carregar Disciplinas
+        onValue(ref(db, 'configuracao/disciplinas'), (snap) => {
+            const sel = document.getElementById('aula-disc');
+            sel.innerHTML = '<option value="">Selecione...</option>';
+            snap.forEach(c => { sel.innerHTML += `<option value="${c.key}">${c.key}</option>`; });
+        });
+
+        // Carregar Alunos para Manual
+        onValue(ref(db, 'users'), (snap) => {
+            const selManual = document.getElementById('aluno-manual');
+            selManual.innerHTML = '<option value="">Selecione o aluno...</option>';
+            listaAlunosCache = [];
+            snap.forEach(c => {
+                const u = c.val();
+                if ((u.role || u.tipo || "").toLowerCase() === 'aluno') {
+                    listaAlunosCache.push({ nome: u.nome, email: u.email, uid: c.key });
+                    selManual.innerHTML += `<option value="${c.key}">${u.nome}</option>`;
+                }
+            });
+        });
+
+        ouvirPresencas();
+    }
+
+    // --- LÓGICA DO QR CODE ---
+    document.getElementById('btn-iniciar').onclick = () => {
+        const disc = document.getElementById('aula-disc').value;
+        if(!disc) return alert("Selecione a disciplina!");
+        
+        document.getElementById('btn-iniciar').style.display = 'none';
+        document.getElementById('btn-finalizar').style.display = 'block';
+
+        const gerarCiclo = () => {
+            const token = Math.floor(100000 + Math.random() * 900000);
+            const dadosQR = `${disc}|${Date.now()}|${document.getElementById('h-inicio').value}|${token}`;
+            const qrDiv = document.getElementById("qrcode");
+            qrDiv.innerHTML = "";
+            new QRCode(qrDiv, { text: dadosQR, width: 160, height: 160 });
+            document.getElementById('token-val').innerText = token;
+        };
+
+        gerarCiclo();
+        intervaloToken = setInterval(gerarCiclo, 10000); // Muda a cada 10s
+    };
+
+    document.getElementById('btn-finalizar').onclick = () => {
+        clearInterval(intervaloToken);
+        document.getElementById('btn-iniciar').style.display = 'block';
+        document.getElementById('btn-finalizar').style.display = 'none';
+        document.getElementById("qrcode").innerHTML = "<span>Encerrada</span>";
+    };
+
+    // --- TABELA DE PRESENÇAS ---
+    function ouvirPresencas() {
+        onValue(ref(db, '2026/registos_presenca'), (snap) => {
+            const corpo = document.getElementById('lista-alunos');
+            const disc = document.getElementById('aula-disc').value;
+            const dataFiltro = new Date(document.getElementById('filtro-data').value).toLocaleDateString('pt-PT');
+            const tol = parseInt(document.getElementById('tolerancia').value) || 15;
+
+            corpo.innerHTML = "";
+            if (snap.exists()) {
+                const dados = Object.values(snap.val()).reverse();
+                dados.forEach(reg => {
+                    const dataReg = (reg.data || "").split(',')[0].trim();
+                    if ((disc === "" || reg.disciplina === disc) && dataReg === dataFiltro) {
+                        const hEntrada = reg.data.split(', ')[1]?.substring(0,5) || "00:00";
+                        const mAt = calcularAtraso(reg.horaReferencia, hEntrada);
+                        const status = mAt > tol ? "Atraso" : "Presente";
+
+                        corpo.innerHTML += `<tr>
+                            <td><b>${reg.nomeAluno}</b></td>
+                            <td>${hEntrada}</td>
+                            <td><span class="st-badge ${status === 'Atraso' ? 'st-atraso' : 'st-presente'}">${status}</span></td>
+                            <td style="color:${mAt > 0 ? 'red' : 'green'}">${mAt > 0 ? '+'+mAt+'min' : 'Pontual'}</td>
+                            <td>${reg.ip || 'QR Code'}</td>
+                        </tr>`;
+                    }
+                });
+            }
+        });
+    }
+
+    function calcularAtraso(refH, entH) {
+        if(!refH || !entH) return 0;
+        const [rH, rM] = refH.split(':').map(Number);
+        const [eH, eM] = entH.split(':').map(Number);
+        return Math.max(0, (eH * 60 + eM) - (rH * 60 + rM));
+    }
+
+    // --- LANÇAMENTO MANUAL ---
+    document.getElementById('btn-lancar-manual').onclick = async () => {
+        const uid = document.getElementById('aluno-manual').value;
+        const disc = document.getElementById('aula-disc').value;
+        if(!uid || !disc) return alert("Selecione aluno e disciplina!");
+
+        const aluno = listaAlunosCache.find(a => a.uid === uid);
+        const agora = new Date();
+
+        await push(ref(db, '2026/registos_presenca'), {
+            nomeAluno: aluno.nome,
+            email: aluno.email,
+            disciplina: disc,
+            data: agora.toLocaleDateString('pt-PT') + ", " + agora.toLocaleTimeString('pt-PT'),
+            horaReferencia: document.getElementById('h-inicio').value,
+            ip: "Manual",
+            status: "Presente"
+        });
+        alert("Presença registada!");
+    };
+
+    document.getElementById('btn-sair').onclick = () => signOut(auth);
+
+</script>
+</body>
+</html>

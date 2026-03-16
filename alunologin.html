@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SGE - AE Augusto Cabrita</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="SGE Portal">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    
+    <style>
+        :root { --primary: #1a237e; --bg: #f4f7fc; --danger: #ff5252; --success: #4caf50; --border-blue: #3f51b5; }
+        body { background: var(--bg); margin: 0; font-family: 'Poppins', sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        header { padding: 15px; display: flex; align-items: center; background: white; border-bottom: 1px solid #eee; width: 100%; box-sizing: border-box; position: sticky; top: 0; z-index: 100; }
+        .avatar-circle { width: 45px; height: 45px; background: var(--primary); color: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 12px; font-size: 18px; }
+        #interface-aluno { display: none; width: 100%; max-width: 480px; padding: 10px 0 40px 0; }
+        #tela-login { position: fixed; inset: 0; background: var(--primary); z-index: 1000; display: none; align-items: center; justify-content: center; }
+        .card { background: white; border-radius: 25px; padding: 20px; margin: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05); }
+        .bloqueio-wrapper { background: var(--border-blue); padding: 20px; border-radius: 35px; margin: 15px; min-height: 180px; display: flex; align-items: center; }
+        .bloqueio-inner { background: #e0e0e0; width: 100%; border-radius: 25px; display: flex; flex-direction: column; align-items: center; padding: 30px 10px; }
+        .camera-txt { font-weight: 800; font-size: 20px; color: #888; text-transform: uppercase; }
+        .minutos-alerta { color: #a52a2a; font-weight: bold; font-size: 15px; }
+        .scanner-card-active { background: var(--primary); color: white; text-align: center; cursor: pointer; border-radius: 25px; padding: 25px; margin: 15px; position: relative; overflow: hidden; }
+        #reader { width: 100%; border-radius: 20px; overflow: hidden; display: none; margin-top: 15px; border: 2px solid white; }
+        .login-box { background: white; padding: 30px; border-radius: 30px; width: 80%; max-width: 350px; text-align: center; }
+        input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 10px; border: 1px solid #ddd; box-sizing: border-box; }
+        select { width: calc(100% - 30px); padding: 14px; margin: 0 15px 10px 15px; border: 1px solid #ddd; border-radius: 15px; background: #f0f0f0; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }
+        .stat-box { background: #f8f9fa; padding: 15px; border-radius: 20px; text-align: center; border: 1px solid #eee; }
+        .stat-box h3 { margin: 0; color: var(--primary); font-size: 24px; }
+        .btn-group { display: flex; gap: 5px; margin-bottom: 20px; }
+        .btn-periodo { flex: 1; padding: 10px 2px; border: 1px solid #eee; background: white; border-radius: 10px; font-size: 11px; cursor: pointer; }
+        .btn-periodo.active { background: var(--primary); color: white; }
+        .chart-container { height: 280px; width: 100%; margin-top: 10px; }
+
+        .radar-container { display: none; position: relative; width: 100px; height: 100px; margin: 15px auto; }
+        .radar-sweep { width: 100%; height: 100%; border-radius: 50%; border: 2px solid #fff; background: conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.4) 50%, #ffd600 100%); animation: radar-spin 2s linear infinite; }
+        .radar-sweep.success-pulse { background: conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.4) 50%, #4caf50 100%); box-shadow: 0 0 15px #4caf50; }
+        @keyframes radar-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        #msg-distancia { font-weight: bold; margin-top: 10px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div id="tela-login">
+    <div class="login-box">
+        <h2 style="color:var(--primary); margin:0">Portal SGE</h2>
+        <input type="email" id="login-email" placeholder="Email">
+        <input type="password" id="login-pass" placeholder="Senha/Nº Estudante">
+        <button onclick="fazerLogin()" style="width:100%; padding:14px; background:var(--primary); color:white; border:none; border-radius:10px; font-weight:bold; cursor:pointer;">Entrar</button>
+    </div>
+</div>
+
+<div id="interface-aluno">
+    <header>
+        <div class="avatar-circle" id="avatar">?</div>
+        <div>
+            <div id="nome-perfil" style="font-weight:600">...</div>
+            <div style="font-size:10px; color:#888;">AE AUGUSTO CABRITA</div>
+        </div>
+        <button onclick="fazerLogout()" style="margin-left:auto; color:var(--danger); border:none; background:none; font-weight:bold;">Sair</button>
+    </header>
+
+    <div id="area-scanner"></div>
+
+    <select id="filtro-disciplina" onchange="atualizarEstatisticas()">
+        <option value="todas">Todas as Disciplinas</option>
+    </select>
+
+    <div class="card">
+        <div class="btn-group">
+            <button class="btn-periodo" id="btn-diario" onclick="mudarPeriodo('diario')">Hoje</button>
+            <button class="btn-periodo" id="btn-semanal" onclick="mudarPeriodo('semanal')">Semana</button>
+            <button class="btn-periodo active" id="btn-mensal" onclick="mudarPeriodo('mensal')">Mês</button>
+            <button class="btn-periodo" id="btn-anual" onclick="mudarPeriodo('anual')">Ano</button>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-box"><h3 id="stat-assistido">0</h3><span style="font-size:9px">Min. Assistidos</span></div>
+            <div class="stat-box"><h3 id="stat-atraso">0</h3><span style="font-size:9px">Min. Atraso</span></div>
+        </div>
+        <div class="chart-container"><canvas id="performanceChart"></canvas></div>
+    </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+import { getDatabase, ref, get, push, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+emailjs.init("2p84xXlPeKca8Gpqy");
+const firebaseConfig = { apiKey: "AIzaSyCZ1pSs0SP5LGC21CW8kGsM0iXNfgZaSUo", authDomain: "efpinscri-lunda-sul.firebaseapp.com", databaseURL: "https://efpinscri-lunda-sul-default-rtdb.firebaseio.com", projectId: "efpinscri-lunda-sul", appId: "1:76741833587:web:1b3052770218fb70dc8b06" };
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth(app);
+
+const DURACAO_AULA = 50;
+const ESCOLA_LAT = 38.657073; 
+const ESCOLA_LON = -9.058417;
+const RAIO_PERIMETRO = 120;
+
+let chart, dadosAluno = null, todosRegistos = [], periodoAtual = 'mensal';
+
+function tocarSom(tipo) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    if(tipo === 'bip') { osc.frequency.setValueAtTime(880, ctx.currentTime); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.1); }
+    else { osc.frequency.setValueAtTime(523, ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(1046, ctx.currentTime + 0.3); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.3); }
+}
+
+function gerarChaveEmail(email) {
+    if (!email) return "";
+    return email.toLowerCase()
+                .trim()
+                .replace(/\./g, "_")
+                .replace(/@/g, "_")
+                .replace(/[.#$[\]/]/g, "_");
+}
+function calcularDistancia(lat1, lon1, lat2, lon2) { const R = 6371e3; const dLat = (lat2-lat1)*Math.PI/180; const dLon = (lon2-lon1)*Math.PI/180; const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2; return Math.round(R*(2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)))); }
+
+window.fazerLogin = () => { const e = document.getElementById('login-email').value.trim(); const p = document.getElementById('login-pass').value; signInWithEmailAndPassword(auth, e, p).catch(() => alert("Dados Inválidos.")); };
+window.fazerLogout = () => signOut(auth).then(() => { localStorage.clear(); location.reload(); });
+
+onAuthStateChanged(auth, async user => {
+    if(user) {
+        const uID = gerarChaveEmail(user.email);
+        get(ref(db, `users/${uID}`)).then(snap => {
+            const u = snap.val();
+            if (u && u.role.toLowerCase() === "aluno") {
+                dadosAluno = u; dadosAluno.idFormatado = uID;
+                document.getElementById('nome-perfil').innerText = u.nome;
+                document.getElementById('avatar').innerText = u.nome.charAt(0).toUpperCase();
+                document.getElementById('tela-login').style.display = 'none';
+                document.getElementById('interface-aluno').style.display = 'block';
+                verificarBloqueio(); ouvirDados();
+            }
+        });
+    } else { document.getElementById('tela-login').style.display = 'flex'; }
+});
+
+function verificarBloqueio() {
+    const last = localStorage.getItem(`lastScan_${dadosAluno.idFormatado}`);
+    if (last) {
+        const diff = Math.floor((Date.now() - parseInt(last)) / 60000);
+        if (diff < DURACAO_AULA) {
+            document.getElementById('area-scanner').innerHTML = `<div class="bloqueio-wrapper"><div class="bloqueio-inner"><div class="camera-txt">Bloqueada</div><div class="minutos-alerta">Aguarde ${DURACAO_AULA-diff} min</div></div></div>`;
+            return;
+        }
+    }
+    renderizarScannerAtivo();
+}
+
+function renderizarScannerAtivo() {
+    document.getElementById('area-scanner').innerHTML = `
+        <div class="scanner-card-active" onclick="window.iniciarCamera()">
+            <div id="label-scan">📸 <b>REGISTAR PRESENÇA</b></div>
+            <div id="radar-gps" class="radar-container"><div class="radar-sweep"></div></div>
+            <div id="msg-distancia"></div>
+            <div id="reader"></div>
+        </div>`;
+}
+
+window.iniciarCamera = async function() {
+    const label = document.getElementById('label-scan'), radarCont = document.getElementById('radar-gps'), sweep = document.querySelector('.radar-sweep'), msg = document.getElementById('msg-distancia');
+    label.style.display = 'none'; radarCont.style.display = 'block'; msg.innerHTML = "📡 A localizar...";
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+        const d = calcularDistancia(pos.coords.latitude, pos.coords.longitude, ESCOLA_LAT, ESCOLA_LON);
+        sweep.classList.add('success-pulse'); msg.innerHTML = `✅ Localizado: ${d}m`; tocarSom('bip');
+        setTimeout(async () => {
+            if (d > RAIO_PERIMETRO) { radarCont.style.display = 'none'; label.style.display = 'block'; return alert(`Fora do alcance: ${d}m.`); }
+            radarCont.style.display = 'none'; document.getElementById('reader').style.display = 'block';
+            const html5 = new Html5Qrcode("reader");
+            html5.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, async (txt) => {
+                const [disc, , hRef] = txt.split('|');
+                const agora = new Date(), hAtual = agora.getHours().toString().padStart(2,'0') + ":" + agora.getMinutes().toString().padStart(2,'0');
+                await html5.stop();
+                const atr = calcularAtraso(hRef, hAtual), status = atr > 10 ? "Atraso" : "Presente";
+                await push(ref(db, `2026/registos_presenca`), { alunoId: dadosAluno.idFormatado, nomeAluno: dadosAluno.nome, disciplina: disc, data: agora.toLocaleString('pt-PT'), status_presenca: status, minutos_atraso: atr, timestamp: serverTimestamp() });
+                emailjs.send("service_dadz9c2", "template_x7cm0q7", { to_email: dadosAluno.email_encarregado || dadosAluno.email, nome_aluno: dadosAluno.nome, disciplina: disc, data_hora: agora.toLocaleString('pt-PT'), status_presenca: status, minutos_atraso: atr });
+                tocarSom('sucesso'); localStorage.setItem(`lastScan_${dadosAluno.idFormatado}`, Date.now().toString());
+                location.reload();
+            });
+        }, 800);
+    }, () => { radarCont.style.display = 'none'; label.style.display = 'block'; alert("Ative o GPS."); }, { enableHighAccuracy: true });
+};
+
+function calcularAtraso(h1, h2) { if(!h1 || !h2) return 0; const [h1h, h1m] = h1.split(':').map(Number), [h2h, h2m] = h2.split(':').map(Number); return Math.max(0, (h2h*60+h2m)-(h1h*60+h1m)); }
+
+function ouvirDados() {
+    onValue(ref(db, `2026/registos_presenca`), (snap) => {
+        if(snap.exists()){
+            todosRegistos = Object.values(snap.val()).filter(r => r.alunoId === dadosAluno.idFormatado);
+            const discSet = new Set(todosRegistos.map(r => r.disciplina));
+            const select = document.getElementById('filtro-disciplina');
+            select.innerHTML = '<option value="todas">Todas as Disciplinas</option>';
+            discSet.forEach(d => select.innerHTML += `<option value="${d}">${d}</option>`);
+            atualizarEstatisticas();
+        }
+    });
+}
+
+window.mudarPeriodo = (p) => { periodoAtual = p; document.querySelectorAll('.btn-periodo').forEach(b => b.classList.toggle('active', b.id === 'btn-'+p)); atualizarEstatisticas(); };
+
+window.atualizarEstatisticas = () => {
+    const discF = document.getElementById('filtro-disciplina').value;
+    const agora = Date.now();
+    const filtrados = todosRegistos.filter(r => {
+        const diff = (agora - r.timestamp) / 86400000;
+        const bateD = discF === 'todas' || r.disciplina === discF;
+        if (periodoAtual === 'diario') return diff < 1 && bateD;
+        if (periodoAtual === 'semanal') return diff <= 7 && bateD;
+        if (periodoAtual === 'mensal') return diff <= 30 && bateD;
+        return bateD;
+    });
+
+    const totalAtr = filtrados.reduce((acc, r) => acc + (r.minutos_atraso || 0), 0);
+    const totalAssis = (filtrados.length * DURACAO_AULA) - totalAtr;
+
+    document.getElementById('stat-assistido').innerText = Math.max(0, totalAssis);
+    document.getElementById('stat-atraso').innerText = totalAtr;
+    desenharGrafico(filtrados, totalAssis, totalAtr);
+};
+
+function desenharGrafico(dados, assis, atr) {
+    const ctx = document.getElementById('performanceChart').getContext('2d');
+    if(chart) chart.destroy();
+
+    if(periodoAtual === 'diario') {
+        chart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: ['Assistidos (min)', 'Atrasos (min)'],
+                datasets: [{ 
+                    data: [assis, atr], 
+                    backgroundColor: ['#4caf50', '#ff5252'],
+                    borderColor: '#ffffff',
+                    borderWidth: 2
+                }]
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, position: 'bottom' }
+                }
+            }
+        });
+    } else {
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dados.map(d => d.data.substring(0, 5)),
+                datasets: [{ 
+                    label: 'Minutos Atraso', 
+                    data: dados.map(r => r.minutos_atraso), 
+                    borderColor: '#1a237e', 
+                    backgroundColor: 'rgba(26, 35, 126, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointBackgroundColor: dados.map(r => r.minutos_atraso > 10 ? '#ff5252' : '#4caf50')
+                }]
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { 
+                        display: true, 
+                        labels: {
+                            generateLabels: (chart) => {
+                                return [
+                                    { text: 'Assistidos (min)', fillStyle: '#4caf50', strokeStyle: '#4caf50', lineWidth: 0 },
+                                    { text: 'Atrasos (min)', fillStyle: '#ff5252', strokeStyle: '#ff5252', lineWidth: 0 }
+                                ];
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: (context) => `Data: ${dados[context[0].dataIndex].data}`,
+                            label: (context) => {
+                                const r = dados[context.dataIndex];
+                                return [
+                                    `Matéria: ${r.disciplina}`,
+                                    `Atraso: ${r.minutos_atraso} min`
+                                ];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Minutos' } }
+                }
+            }
+        });
+    }
+}
+</script>
+</body>
+</html>

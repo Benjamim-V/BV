@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SGE Admin Pro - 2026</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --primary: #1a237e; --sec: #43a047; --bg: #f4f7f6; --danger: #d32f2f; --white: #ffffff; --warn: #ffa000; }
+        body { font-family: 'Poppins', sans-serif; background: var(--bg); margin: 0; padding: 0; color: #333; font-size: 13px; }
+        
+        nav { background: var(--primary); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; color: white; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .nav-links { display: flex; gap: 20px; align-items: center; }
+        nav a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.3s; padding: 8px 12px; border-radius: 6px; }
+        nav a:hover, nav a.active { color: white; background: rgba(255,255,255,0.1); }
+        .btn-logout { background: var(--danger); color: white !important; border-radius: 6px; font-weight: 600; }
+
+        .container { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
+        .page { display: none; }
+        .page.active { display: block; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .card-admin { background: var(--white); padding: 25px; border-radius: 16px; box-shadow: 0 8px 24px rgba(149, 157, 165, 0.1); margin-bottom: 20px; border: 1px solid rgba(0,0,0,0.03); }
+        h3 { margin-top: 0; font-size: 16px; color: var(--primary); border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; }
+        
+        .filtros-inline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; background: #f8f9fa; padding: 15px; border-radius: 12px; }
+        .filtros-inline label { font-size: 10px; font-weight: 600; color: #666; display: block; margin-bottom: 5px; }
+
+        input, select { padding: 10px; border: 2px solid #e0e6ed; border-radius: 10px; width: 100%; box-sizing: border-box; font-family: inherit; transition: 0.3s; background: #fafafa; font-size: 12px; }
+        input:focus { border-color: var(--primary); outline: none; background: #fff; }
+
+        .btn { padding: 10px 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: inherit; font-size: 12px; transition: 0.2s; }
+        .btn-import { background: var(--primary); color: white; width: 100%; }
+        .btn-export { background: var(--sec); color: white; width: 100%; margin-top: 10px; }
+        .btn-refresh { background: #e8eaf6; color: var(--primary); margin-bottom: 15px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-critical { background: white; color: var(--danger); border: 1px solid var(--danger); width: 100%; margin-bottom: 12px; padding: 12px; }
+
+        #log-sincro { background: #1a1a1a; padding: 15px; border-radius: 12px; font-family: monospace; font-size: 11px; max-height: 250px; overflow-y: auto; display: none; margin-top: 15px; color: white; border: 1px solid #333; line-height: 1.5; }
+        .log-entry-new { color: #4db6ac; } 
+        .log-entry-upd { color: #ffca28; } 
+        .log-entry-err { color: #ff5252; }
+        .log-entry-end { color: #43a047; font-weight: bold; margin-top: 10px; border-top: 1px solid #333; padding-top: 5px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #f8f9fa; text-align: left; padding: 12px; border-bottom: 2px solid #eee; font-size: 11px; color: #666; }
+        td { padding: 12px; border-bottom: 1px solid #eee; font-size: 11px; }
+
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: bold; }
+        .badge-atraso { background: #ffebee; color: var(--danger); }
+        .badge-presente { background: #e8f5e9; color: var(--sec); }
+
+        .rank-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .rank-box { background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #f0f0f0; }
+        .rank-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f5f5f5; font-size: 12px; }
+        .count-badge { padding: 2px 8px; border-radius: 10px; color: white; font-size: 10px; }
+        
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
+        .btn-x { background: none; border: 1px solid #ddd; color: #333; cursor: pointer; border-radius: 4px; padding: 2px 6px; font-size: 10px; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="nav-links">
+        <a onclick="showPage('painel')" id="nav-painel" class="active">🏠 Painel</a>
+        <a onclick="showPage('config')" id="nav-config">⚙️ Configurações</a>
+    </div>
+    <a onclick="fazerLogout()" class="btn-logout">🚪 Sair do Sistema</a>
+</nav>
+
+<div class="container">
+    <div id="page-painel" class="page active">
+        <div class="grid">
+            <div class="card-admin">
+                <h3>📥 Gestão de Base de Dados</h3>
+                <button class="btn btn-refresh" onclick="location.reload()">🔄 Atualizar Sistema</button>
+                <input type="file" id="file-import" accept=".xlsx">
+                <button class="btn btn-import" onclick="processarImportacao()">Sincronizar Cloud (Padrão UID)</button>
+                <div id="log-sincro"></div>
+                <button class="btn btn-export" onclick="exportarExcelFiltrado()">📊 Exportar Seleção (Excel)</button>
+            </div>
+
+            <div class="card-admin">
+                <h3>📊 Desempenho Filtrado</h3>
+                <div class="filtros-inline">
+                    <div>
+                        <label>DISCIPLINA</label>
+                        <select id="filtro-disciplina" onchange="aplicarFiltroGeral()"><option value="Todas">Todas</option></select>
+                    </div>
+                    <div>
+                        <label>DATA</label>
+                        <input type="date" id="filtro-data" onchange="aplicarFiltroGeral()">
+                    </div>
+                    <div>
+                        <label>CLASSE/SALA</label>
+                        <select id="filtro-classe" onchange="aplicarFiltroGeral()">
+                            <option value="Todas">Todas</option>
+                            <option value="10ª Classe">10ª Classe</option>
+                            <option value="11ª Classe">11ª Classe</option>
+                            <option value="12ª Classe">12ª Classe</option>
+                            <option value="13ª Classe">13ª Classe</option>
+                            <option value="Sala 01">Sala 01</option>
+                            <option value="Lab 02">Lab 02</option>
+                        </select>
+                    </div>
+                </div>
+                <canvas id="graficoPresencas" style="width:100%; max-height:180px;"></canvas>
+                <div class="rank-container">
+                    <div class="rank-box">
+                        <h4 style="font-size:11px; color:var(--sec); margin:0;">✅ Mais Assíduas</h4>
+                        <div id="rank-presenca"></div>
+                    </div>
+                    <div class="rank-box">
+                        <h4 style="font-size:11px; color:var(--danger); margin:0;">🚩 Mais Atrasos</h4>
+                        <div id="rank-atraso"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-config" class="page">
+        <div class="grid">
+            <div class="card-admin">
+                <h3>📚 Gestão de Disciplinas</h3>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="nova-disciplina" placeholder="Ex: Matemática">
+                    <button class="btn btn-import" style="width:45px;" onclick="addConfig('disciplinas', 'nova-disciplina')">+</button>
+                </div>
+                <div id="lista-disciplinas" style="max-height: 150px; overflow-y: auto;"></div>
+            </div>
+            <div class="card-admin">
+                <h3>⚠️ Manutenção</h3>
+                <button class="btn btn-critical" onclick="limparDados('2026/registos_presenca')">Limpar Registos 2026</button>
+                <button class="btn btn-critical" style="color:orange; border-color:orange;" onclick="limparDados('users')">Limpar Todos os Usuários</button>
+            </div>
+        </div>
+
+        <div class="card-admin">
+            <h3>📋 Auditoria de Registos</h3>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data/Hora</th>
+                            <th>Disciplina</th>
+                            <th>Professor</th>
+                            <th>Aluno</th>
+                            <th>Classe/Sala</th>
+                            <th>Status</th>
+                            <th>Minutos</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corpo-auditoria"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getDatabase, ref, set, get, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+    import { getAuth, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCZ1pSs0SP5LGC21CW8kGsM0iXNfgZaSUo",
+        authDomain: "efpinscri-lunda-sul.firebaseapp.com",
+        databaseURL: "https://efpinscri-lunda-sul-default-rtdb.firebaseio.com",
+        projectId: "efpinscri-lunda-sul",
+        appId: "1:76741833587:web:1b3052770218fb70dc8b06"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    // Instância secundária para criar users sem deslogar o admin atual
+    const appSecondary = initializeApp(firebaseConfig, "Secondary");
+    const authSecondary = getAuth(appSecondary);
+
+    let dadosPresencaGlobais = [];
+
+    // GRÁFICO
+    const ctx = document.getElementById('graficoPresencas').getContext('2d');
+    let chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'],
+            datasets: [
+                { label: 'Presenças (%)', borderColor: '#1a237e', backgroundColor: 'rgba(26, 35, 126, 0.1)', data: [0,0,0,0,0], tension: 0.4, fill: true },
+                { label: 'Atrasos (Qtd)', borderColor: '#d32f2f', data: [0,0,0,0,0], tension: 0.4 }
+            ]
+        },
+        options: { scales: { y: { beginAtZero: true, max: 100 } } }
+    });
+
+    function emailValido(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    // FUNÇÃO ATUALIZADA: Agora captura o UID real do Firebase Auth
+    window.processarImportacao = async function() {
+        const fileInput = document.getElementById('file-import');
+        const log = document.getElementById('log-sincro');
+
+        if (!fileInput.files[0]) return alert("Selecione um ficheiro Excel.");
+
+        log.style.display = "block";
+        log.innerHTML = `<div class="log-entry-new">> A iniciar sincronização por UID (Padrão Recomendado)...</div>`;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+
+            for (const item of jsonData) {
+                let emailRaw = (item.email || "").toLowerCase().trim();
+
+                if (!emailRaw || !emailValido(emailRaw)) {
+                    log.innerHTML += `<div class="log-entry-err">> ⚠️ Ignorado: ${emailRaw || 'Linha vazia'}</div>`;
+                    continue;
+                }
+
+                const role = (item.role || "aluno").toLowerCase();
+                let uidFinal = null;
+
+                try {
+                    // 1. Criar no Authentication e capturar o UID
+                    try {
+                        const userCredential = await createUserWithEmailAndPassword(authSecondary, emailRaw, "123456");
+                        uidFinal = userCredential.user.uid;
+                        log.innerHTML += `<div class="log-entry-new">> ✅ CONTA CRIADA: ${emailRaw} (UID: ${uidFinal})</div>`;
+                    } catch (err) {
+                        if (err.code === 'auth/email-already-in-use') {
+                            log.innerHTML += `<div class="log-entry-upd">> ℹ️ O utilizador ${emailRaw} já existe. (Pule o nó ou verifique no Auth)</div>`;
+                            // Nota: Não é possível pegar o UID de um user já existente sem logar nele por segurança client-side.
+                            continue;
+                        } else {
+                            throw err;
+                        }
+                    }
+
+                    // 2. Guardar na Database usando o UID como chave (O PADRÃO RECOMENDADO)
+                    if (uidFinal) {
+                        await set(ref(db, 'users/' + uidFinal), {
+                            nome: item.nome || emailRaw,
+                            email: emailRaw,
+                            role: role,
+                            numero: String(item.numero_estudante || item.numero || "---"),
+                            ativo: true
+                        });
+                    }
+
+                } catch (error) {
+                    log.innerHTML += `<div class="log-entry-err">> ❌ Erro ao processar ${emailRaw}: ${error.message}</div>`;
+                }
+                log.scrollTop = log.scrollHeight;
+            }
+            log.innerHTML += `<div class="log-entry-end">Sincronização concluída com sucesso!</div>`;
+        };
+        reader.readAsArrayBuffer(fileInput.files[0]);
+    };
+
+    // --- MANUTENÇÃO DAS FUNÇÕES ORIGINAIS ---
+
+    window.exportarExcelFiltrado = function(){
+        const linhas = document.querySelectorAll("#corpo-auditoria tr");
+        if(!linhas.length) return alert("Sem dados.");
+        let dados = Array.from(linhas).map(l => {
+            const cols = l.querySelectorAll("td");
+            return { data: cols[0].innerText, disciplina: cols[1].innerText, professor: cols[2].innerText, aluno: cols[3].innerText, classe: cols[4].innerText, status: cols[5].innerText, minutos: cols[6].innerText };
+        });
+        const ws = XLSX.utils.json_to_sheet(dados);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Relatorio");
+        XLSX.writeFile(wb, "relatorio_filtrado.xlsx");
+    }
+
+    function parseData(str) {
+        if(!str) return null;
+        const partes = str.split(',')[0].trim().split('/');
+        return partes.length === 3 ? new Date(partes[2], partes[1]-1, partes[0]) : null;
+    }
+
+    window.aplicarFiltroGeral = function() {
+        const fDisc = document.getElementById('filtro-disciplina').value;
+        const fData = document.getElementById('filtro-data').value;
+        const fClasse = document.getElementById('filtro-classe').value;
+        let dataBusca = fData ? fData.split('-').reverse().join('/') : "";
+
+        const filtrados = dadosPresencaGlobais.filter(r => {
+            const matchDisc = fDisc === "Todas" || r.disciplina === fDisc;
+            const matchData = !fData || (r.data && r.data.includes(dataBusca));
+            const rLocal = (r.classe || r.sala || "").toLowerCase();
+            const matchClasse = fClasse === "Todas" || rLocal.includes(fClasse.toLowerCase());
+            return matchDisc && matchData && matchClasse;
+        });
+        atualizarUI(filtrados);
+    };
+
+    function atualizarUI(dados) {
+        const corpo = document.getElementById('corpo-auditoria');
+        corpo.innerHTML = ""; 
+        const rankP = {}, rankA = {}, diasPresenca = [0,0,0,0,0], diasAtraso = [0,0,0,0,0], diasTotal = [0,0,0,0,0];
+
+        dados.forEach(r => {
+            const dNome = r.disciplina || "Indefinida";
+            if(r.status === "Atraso") rankA[dNome] = (rankA[dNome] || 0) + 1;
+            else rankP[dNome] = (rankP[dNome] || 0) + 1;
+
+            const dataObj = parseData(r.data);
+            if(dataObj) {
+                let diaSemana = dataObj.getDay() - 1;
+                if(diaSemana >= 0 && diaSemana <= 4) {
+                    diasTotal[diaSemana]++;
+                    if(r.status === "Atraso") diasAtraso[diaSemana]++;
+                    else diasPresenca[diaSemana]++;
+                }
+            }
+
+            corpo.innerHTML += `<tr>
+                <td>${r.data || '---'}</td>
+                <td><b>${r.disciplina || '---'}</b></td>
+                <td>${r.professor || '---'}</td>
+                <td>${r.nome || r.email || '---'}</td>
+                <td>${r.classe || r.sala || '---'}</td>
+                <td><span class="badge ${r.status==='Atraso'?'badge-atraso':'badge-presente'}">${r.status || 'PRESENTE'}</span></td>
+                <td>${r.atraso || r.minutos || 0} min</td>
+            </tr>`;
+        });
+
+        document.getElementById('rank-presenca').innerHTML = Object.entries(rankP).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,v])=>`<div class="rank-item"><span>${n}</span><span class="count-badge" style="background:var(--sec)">${v}</span></div>`).join('');
+        document.getElementById('rank-atraso').innerHTML = Object.entries(rankA).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,v])=>`<div class="rank-item"><span>${n}</span><span class="count-badge" style="background:var(--danger)">${v}</span></div>`).join('');
+        chart.data.datasets[0].data = diasTotal.map((total, i) => total > 0 ? Math.round((diasPresenca[i] / total) * 100) : 0);
+        chart.data.datasets[1].data = diasAtraso;
+        chart.update();
+    }
+
+    onValue(ref(db, '2026/registos_presenca'), snap => {
+        if(snap.exists()) { 
+            dadosPresencaGlobais = Object.values(snap.val()).reverse(); 
+            aplicarFiltroGeral(); 
+        } else {
+            document.getElementById('corpo-auditoria').innerHTML = "";
+        }
+    });
+
+    onValue(ref(db, 'configuracao/disciplinas'), snap => {
+        const list = document.getElementById('lista-disciplinas'), sel = document.getElementById('filtro-disciplina');
+        list.innerHTML = ""; sel.innerHTML = '<option value="Todas">Todas</option>';
+        if(snap.exists()) Object.keys(snap.val()).forEach(k => {
+            sel.innerHTML += `<option value="${k}">${k}</option>`;
+            list.innerHTML += `<div class="list-item"><span>${k}</span><button class="btn-x" onclick="removeConfig('disciplinas','${k}')">✖</button></div>`;
+        });
+    });
+
+    window.showPage = id => {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+        document.getElementById('page-'+id).classList.add('active');
+        document.getElementById('nav-'+id).classList.add('active');
+    };
+    window.addConfig = (t,id) => { const v = document.getElementById(id).value; if(v) set(ref(db,`configuracao/${t}/${v}`),true); document.getElementById(id).value=""; };
+    window.removeConfig = (t,k) => confirm("Apagar?") && remove(ref(db,`configuracao/${t}/${k}`));
+    window.limparDados = p => confirm("Atenção: Esta ação é irreversível. Deseja apagar todos os dados deste nó?") && remove(ref(db,p));
+    window.fazerLogout = () => signOut(auth).then(()=> window.location.href="alunologin.html");
+</script>
+</body>
+</html>
