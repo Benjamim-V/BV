@@ -7,8 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
         :root { --primary: #1a237e; --secondary: #7b1fa2; --success: #2e7d32; --danger: #d32f2f; --warning: #ff9800; --bg: #f0f2f5; }
@@ -25,8 +24,6 @@
         .btn-finalizar { background: var(--danger); color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 8px; display: none; }
         .btn-manual { background: var(--success); color: white; border: none; padding: 8px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 5px; }
         #qrcode { background: #f9f9f9; padding: 10px; border-radius: 8px; display: flex; justify-content: center; align-items: center; border: 2px dashed #ccc; min-height: 160px; }
-        .timer-cont { width: 100%; height: 5px; background: #eee; margin-top: 10px; border-radius: 10px; overflow: hidden; }
-        #timer-fill { height: 100%; background: var(--secondary); width: 100%; transition: width 1s linear; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 12px; border-bottom: 2px solid #eee; background: #f8f9fa; }
         td { padding: 12px; border-bottom: 1px solid #f0f0f0; }
@@ -39,11 +36,10 @@
 
 <div class="top-bar">
     <div>
-        <span style="font-weight:bold;">SGE - ÁREA DO DOCENTE</span><br>
+        <span style="font-weight:bold;">SGE - ÁREA DO DOCENTE (SUPABASE)</span><br>
         <small id="prof-nome">Autenticando...</small>
     </div>
     <div>
-        <span id="prof-email" style="font-size:11px; margin-right: 15px;">---</span>
         <button id="btn-sair" style="background:transparent; border:1px solid white; color:white; cursor:pointer; padding:4px 10px; border-radius:4px;">Sair</button>
     </div>
 </div>
@@ -52,64 +48,44 @@
     <div class="sidebar">
         <div class="card">
             <div class="card-title">🕒 Configuração da Aula</div>
-            <div class="row-paralelo">
-                <div class="col">
-                    <label>DISCIPLINA</label>
-                    <select id="aula-disc"><option value="">Carregando...</option></select>
-                </div>
-                <div class="col">
-                    <label>SALA</label>
-                    <select id="aula-sala">
-                        <option value="Sala 01">Sala 01</option>
-                        <option value="Sala 02">Sala 02</option>
-                        <option value="Lab 01">Lab 01</option>
-                    </select>
-                </div>
+            <div class="col" style="margin-bottom: 10px;">
+                <label>DISCIPLINA</label>
+                <select id="aula-disc"><option value="">Carregando...</option></select>
             </div>
             <div class="row-paralelo">
                 <div class="col">
-                    <label>HORA INÍCIO</label>
-                    <input type="time" id="h-inicio">
+                    <label>SALA</label>
+                    <select id="aula-sala"></select>
                 </div>
                 <div class="col">
                     <label>TOLERÂNCIA (MIN)</label>
                     <input type="number" id="tolerancia" value="15">
                 </div>
             </div>
-            <button id="btn-iniciar" class="btn-primario">GERAR QR CODE</button>
-            <button id="btn-finalizar" class="btn-finalizar">ENCERRAR AULA</button>
+            <button id="btn-iniciar" class="btn-primario" onclick="iniciarAula()">GERAR QR CODE</button>
+            <button id="btn-finalizar" class="btn-finalizar" onclick="finalizarAula()">ENCERRAR AULA</button>
         </div>
 
         <div class="card">
             <div class="card-title">✍️ Presença Manual</div>
             <label>SELECIONAR ALUNO</label>
             <select id="aluno-manual"><option value="">Carregando...</option></select>
-            <button id="btn-lancar-manual" class="btn-manual">REGISTAR PRESENÇA</button>
+            <button id="btn-lancar-manual" class="btn-manual" onclick="lancarManual()">REGISTAR</button>
         </div>
 
         <div class="card" style="text-align:center;">
-            <div class="card-title">📱 QR Code Dinâmico</div>
+            <div class="card-title">📱 QR Code de Aula</div>
             <div id="qrcode"><span>Aguardando...</span></div>
-            <div class="timer-cont"><div id="timer-fill"></div></div>
-            <div id="token-val" style="font-weight:bold; margin-top:10px; font-size:24px; color:var(--secondary);">---</div>
+            <div id="token-val" style="font-weight:bold; margin-top:10px; font-size:14px; color:var(--secondary);">---</div>
         </div>
     </div>
 
     <div class="main-content">
         <div class="card">
-            <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
-                <span>👥 Presenças em Tempo Real</span>
-                <input type="date" id="filtro-data" style="width: auto;">
-            </div>
-            <table id="tabela-presencas">
+            <div class="card-title">👥 Presenças na Aula Atual</div>
+            <table>
                 <thead>
-                    <tr>
-                        <th>Aluno</th>
-                        <th>Entrada</th>
-                        <th>Status</th>
-                        <th>Atraso</th>
-                        <th>Segurança</th>
-                    </tr>
+                    <tr><th>Aluno</th><th>Hora</th><th>Status</th><th>Atraso</th></tr>
                 </thead>
                 <tbody id="lista-alunos"></tbody>
             </table>
@@ -117,166 +93,139 @@
     </div>
 </div>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    import { getDatabase, ref, get, set, push, onValue, child } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+<script>
+    const SUPABASE_URL = "https://ckfnrxtnhqjmnizxhmhz.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_306amQ_hMAgdqOu3AzZI6A_VPyYzD5U";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyCZ1pSs0SP5LGC21CW8kGsM0iXNfgZaSUo",
-        authDomain: "efpinscri-lunda-sul.firebaseapp.com",
-        databaseURL: "https://efpinscri-lunda-sul-default-rtdb.firebaseio.com",
-        projectId: "efpinscri-lunda-sul",
-        appId: "1:76741833587:web:1b3052770218fb70dc8b06"
-    };
+    let professorLogado = null;
+    let aulaAtivaId = null;
+    let qrGenerator = null;
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
+    async function checkAuth() {
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) { window.location.href = "alunologin.html"; return; }
 
-    let intervaloToken;
-    let listaAlunosCache = [];
+        const { data: prof } = await supabaseClient.from('users').select('*').eq('email', user.email).single();
+        if (prof.role !== 'professor') { alert("Acesso negado"); window.location.href = "alunologin.html"; return; }
+        
+        professorLogado = prof;
+        document.getElementById('prof-nome').innerText = prof.nome;
+        carregarDadosBase();
+    }
 
-    // --- SEGURANÇA E LOGIN (VERSÃO 10) ---
-    onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            const snap = await get(ref(db, `users/${user.uid}`));
-            const data = snap.val();
-            // Aplica a correção de tipo/role e lowercase
-            const cargo = (data?.tipo || data?.role || "").toLowerCase();
+    async function carregarDadosBase() {
+        // Disciplinas
+        const { data: discs } = await supabaseClient.from('disciplinas').select('*');
+        const selD = document.getElementById('aula-disc');
+        selD.innerHTML = '<option value="">Selecione...</option>';
+        discs.forEach(d => selD.innerHTML += `<option value="${d.id}">${d.nome}</option>`);
 
-            if (cargo !== 'professor') {
-                alert("Acesso Negado: Área Restrita a Professores.");
-                window.location.href = "alunologin.html";
-                return;
-            }
+        // Salas
+        const { data: salas } = await supabaseClient.from('salas').select('*');
+        const selS = document.getElementById('aula-sala');
+        selS.innerHTML = '';
+        salas.forEach(s => selS.innerHTML += `<option value="${s.id}">${s.nome}</option>`);
 
-            // Se for professor, carrega os dados
-            document.getElementById('prof-nome').innerText = data.nome;
-            document.getElementById('prof-email').innerText = user.email;
-            carregarDadosIniciais();
-        } else {
-            window.location.href = "alunologin.html";
-        }
-    });
+        // Alunos para Manual
+        const { data: alunos } = await supabaseClient.from('users').select('*').eq('role', 'aluno');
+        const selA = document.getElementById('aluno-manual');
+        selA.innerHTML = '<option value="">Selecionar Aluno...</option>';
+        alunos.forEach(a => selA.innerHTML += `<option value="${a.id}">${a.nome}</option>`);
+    }
 
-    function carregarDadosIniciais() {
-        document.getElementById('filtro-data').valueAsDate = new Date();
-        document.getElementById('h-inicio').value = new Date().toLocaleTimeString('pt-PT', {hour: '2-digit', minute:'2-digit'});
+    async function iniciarAula() {
+        const discId = document.getElementById('aula-disc').value;
+        const salaId = document.getElementById('aula-sala').value;
+        const tol = document.getElementById('tolerancia').value;
 
-        // Carregar Disciplinas
-        onValue(ref(db, 'configuracao/disciplinas'), (snap) => {
-            const sel = document.getElementById('aula-disc');
-            sel.innerHTML = '<option value="">Selecione...</option>';
-            snap.forEach(c => { sel.innerHTML += `<option value="${c.key}">${c.key}</option>`; });
-        });
+        if(!discId) return alert("Selecione a disciplina");
 
-        // Carregar Alunos para Manual
-        onValue(ref(db, 'users'), (snap) => {
-            const selManual = document.getElementById('aluno-manual');
-            selManual.innerHTML = '<option value="">Selecione o aluno...</option>';
-            listaAlunosCache = [];
-            snap.forEach(c => {
-                const u = c.val();
-                if ((u.role || u.tipo || "").toLowerCase() === 'aluno') {
-                    listaAlunosCache.push({ nome: u.nome, email: u.email, uid: c.key });
-                    selManual.innerHTML += `<option value="${c.key}">${u.nome}</option>`;
-                }
-            });
-        });
+        // 1. Criar Registo da Aula
+        const { data: aula, error } = await supabaseClient.from('aulas').insert([{
+            professor_id: professorLogado.id,
+            disciplina_id: discId,
+            sala_id: salaId,
+            tolerancia: tol,
+            hora_inicio: new Date().toLocaleTimeString('pt-PT', {hour12: false})
+        }]).select().single();
+
+        if (error) return alert("Erro ao criar aula");
+
+        aulaAtivaId = aula.id;
+        document.getElementById('btn-iniciar').style.display = 'none';
+        document.getElementById('btn-finalizar').style.display = 'block';
+
+        // 2. Gerar QR Code (Formato: DisciplinaNome | AulaID | HoraInicio)
+        const discNome = document.getElementById('aula-disc').options[document.getElementById('aula-disc').selectedIndex].text;
+        const horaRef = aula.hora_inicio.substring(0,5);
+        const qrTexto = `${discNome}|${aula.id}|${horaRef}`;
+        
+        const qrDiv = document.getElementById("qrcode");
+        qrDiv.innerHTML = "";
+        new QRCode(qrDiv, { text: qrTexto, width: 160, height: 160 });
+        document.getElementById('token-val').innerText = "AULA ID: " + aula.id.substring(0,8);
 
         ouvirPresencas();
     }
 
-    // --- LÓGICA DO QR CODE ---
-    document.getElementById('btn-iniciar').onclick = () => {
-        const disc = document.getElementById('aula-disc').value;
-        if(!disc) return alert("Selecione a disciplina!");
-        
-        document.getElementById('btn-iniciar').style.display = 'none';
-        document.getElementById('btn-finalizar').style.display = 'block';
-
-        const gerarCiclo = () => {
-            const token = Math.floor(100000 + Math.random() * 900000);
-            const dadosQR = `${disc}|${Date.now()}|${document.getElementById('h-inicio').value}|${token}`;
-            const qrDiv = document.getElementById("qrcode");
-            qrDiv.innerHTML = "";
-            new QRCode(qrDiv, { text: dadosQR, width: 160, height: 160 });
-            document.getElementById('token-val').innerText = token;
-        };
-
-        gerarCiclo();
-        intervaloToken = setInterval(gerarCiclo, 10000); // Muda a cada 10s
-    };
-
-    document.getElementById('btn-finalizar').onclick = () => {
-        clearInterval(intervaloToken);
-        document.getElementById('btn-iniciar').style.display = 'block';
-        document.getElementById('btn-finalizar').style.display = 'none';
-        document.getElementById("qrcode").innerHTML = "<span>Encerrada</span>";
-    };
-
-    // --- TABELA DE PRESENÇAS ---
     function ouvirPresencas() {
-        onValue(ref(db, '2026/registos_presenca'), (snap) => {
-            const corpo = document.getElementById('lista-alunos');
-            const disc = document.getElementById('aula-disc').value;
-            const dataFiltro = new Date(document.getElementById('filtro-data').value).toLocaleDateString('pt-PT');
-            const tol = parseInt(document.getElementById('tolerancia').value) || 15;
+        // No Supabase usamos Realtime para atualizar a lista
+        supabaseClient
+            .channel('schema-db-changes')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'presencas', filter: `aula_id=eq.${aulaAtivaId}` }, 
+            payload => {
+                atualizarTabela();
+            })
+            .subscribe();
+        
+        atualizarTabela();
+    }
 
-            corpo.innerHTML = "";
-            if (snap.exists()) {
-                const dados = Object.values(snap.val()).reverse();
-                dados.forEach(reg => {
-                    const dataReg = (reg.data || "").split(',')[0].trim();
-                    if ((disc === "" || reg.disciplina === disc) && dataReg === dataFiltro) {
-                        const hEntrada = reg.data.split(', ')[1]?.substring(0,5) || "00:00";
-                        const mAt = calcularAtraso(reg.horaReferencia, hEntrada);
-                        const status = mAt > tol ? "Atraso" : "Presente";
-
-                        corpo.innerHTML += `<tr>
-                            <td><b>${reg.nomeAluno}</b></td>
-                            <td>${hEntrada}</td>
-                            <td><span class="st-badge ${status === 'Atraso' ? 'st-atraso' : 'st-presente'}">${status}</span></td>
-                            <td style="color:${mAt > 0 ? 'red' : 'green'}">${mAt > 0 ? '+'+mAt+'min' : 'Pontual'}</td>
-                            <td>${reg.ip || 'QR Code'}</td>
-                        </tr>`;
-                    }
-                });
-            }
+    async function atualizarTabela() {
+        const { data } = await supabaseClient.from('presencas').select('*').eq('aula_id', aulaAtivaId);
+        const corpo = document.getElementById('lista-alunos');
+        corpo.innerHTML = "";
+        data?.forEach(reg => {
+            corpo.innerHTML += `<tr>
+                <td>${reg.nome_aluno}</td>
+                <td>${new Date(reg.data).toLocaleTimeString()}</td>
+                <td><span class="st-badge ${reg.status === 'Atraso' ? 'st-atraso' : 'st-presente'}">${reg.status}</span></td>
+                <td>${reg.minutos_atraso} min</td>
+            </tr>`;
         });
     }
 
-    function calcularAtraso(refH, entH) {
-        if(!refH || !entH) return 0;
-        const [rH, rM] = refH.split(':').map(Number);
-        const [eH, eM] = entH.split(':').map(Number);
-        return Math.max(0, (eH * 60 + eM) - (rH * 60 + rM));
+    async function lancarManual() {
+        if(!aulaAtivaId) return alert("Inicie uma aula primeiro");
+        const alunoId = document.getElementById('aluno-manual').value;
+        if(!alunoId) return alert("Selecione um aluno");
+
+        const { data: aluno } = await supabaseClient.from('users').select('nome').eq('id', alunoId).single();
+        const discNome = document.getElementById('aula-disc').options[document.getElementById('aula-disc').selectedIndex].text;
+
+        await supabaseClient.from('presencas').insert([{
+            aluno_id: alunoId,
+            aula_id: aulaAtivaId,
+            disciplina: discNome,
+            nome_aluno: aluno.nome,
+            status: 'Presente',
+            data: new Date().toISOString()
+        }]);
+        
+        atualizarTabela();
     }
 
-    // --- LANÇAMENTO MANUAL ---
-    document.getElementById('btn-lancar-manual').onclick = async () => {
-        const uid = document.getElementById('aluno-manual').value;
-        const disc = document.getElementById('aula-disc').value;
-        if(!uid || !disc) return alert("Selecione aluno e disciplina!");
+    function finalizarAula() {
+        location.reload();
+    }
 
-        const aluno = listaAlunosCache.find(a => a.uid === uid);
-        const agora = new Date();
-
-        await push(ref(db, '2026/registos_presenca'), {
-            nomeAluno: aluno.nome,
-            email: aluno.email,
-            disciplina: disc,
-            data: agora.toLocaleDateString('pt-PT') + ", " + agora.toLocaleTimeString('pt-PT'),
-            horaReferencia: document.getElementById('h-inicio').value,
-            ip: "Manual",
-            status: "Presente"
-        });
-        alert("Presença registada!");
+    document.getElementById('btn-sair').onclick = async () => {
+        await supabaseClient.auth.signOut();
+        location.reload();
     };
 
-    document.getElementById('btn-sair').onclick = () => signOut(auth);
-
+    checkAuth();
 </script>
 </body>
 </html>
