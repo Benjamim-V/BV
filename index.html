@@ -8,10 +8,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     
     <style>
-        /* [Mantendo os seus estilos CSS originais que são excelentes] */
         :root { --primary: #1a237e; --bg: #f4f7fc; --danger: #ff5252; --success: #4caf50; --border-blue: #3f51b5; }
         body { background: var(--bg); margin: 0; font-family: 'Poppins', sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
         header { padding: 15px; display: flex; align-items: center; background: white; border-bottom: 1px solid #eee; width: 100%; box-sizing: border-box; position: sticky; top: 0; z-index: 100; }
@@ -86,7 +84,7 @@
 // CONFIGURAÇÃO SUPABASE
 const SUPABASE_URL = "https://ckfnrxtnhqjmnizxhmhz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_306amQ_hMAgdqOu3AzZI6A_VPyYzD5U";
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Configurações de Negócio
 const DURACAO_AULA = 50;
@@ -98,9 +96,9 @@ let chart, usuarioAtual = null, todosRegistos = [], periodoAtual = 'mensal';
 
 // Inicialização e Auth
 async function checarSessao() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await _supabase.auth.getSession();
     if (session) {
-        carregarDadosUsuario(session.user.id);
+        carregarDadosUsuario(session.user);
     } else {
         document.getElementById('tela-login').style.display = 'flex';
         document.getElementById('interface-aluno').style.display = 'none';
@@ -113,22 +111,22 @@ async function fazerLogin() {
     const btn = document.getElementById('btn-entrar');
     
     btn.innerText = "A autenticar...";
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    const { data, error } = await _supabase.auth.signInWithPassword({ email, password: pass });
 
     if (error) {
-        alert("Erro: " + error.message);
+        alert("Erro no Login: " + error.message);
         btn.innerText = "Entrar";
     } else {
         location.reload();
     }
 }
 
-async function carregarDadosUsuario(authId) {
-    // Buscar perfil na tabela 'users' usando o auth_uid
-    const { data: user, error } = await supabase
+async function carregarDadosUsuario(authUser) {
+    // Buscar perfil na tabela 'users' vinculada pelo email ou ID
+    const { data: user, error } = await _supabase
         .from('users')
         .select('*')
-        .eq('email', (await supabase.auth.getUser()).data.user.email)
+        .eq('email', authUser.email)
         .single();
 
     if (user) {
@@ -141,11 +139,13 @@ async function carregarDadosUsuario(authId) {
         
         verificarBloqueio();
         carregarHistorico();
+    } else {
+        console.error("Usuário não encontrado na tabela 'users'");
     }
 }
 
 async function carregarHistorico() {
-    const { data } = await supabase
+    const { data, error } = await _supabase
         .from('presencas')
         .select('*')
         .eq('aluno_id', usuarioAtual.id)
@@ -156,7 +156,9 @@ async function carregarHistorico() {
         const discSet = new Set(data.map(r => r.disciplina));
         const select = document.getElementById('filtro-disciplina');
         select.innerHTML = '<option value="todas">Todas as Disciplinas</option>';
-        discSet.forEach(d => select.innerHTML += `<option value="${d}">${d}</option>`);
+        discSet.forEach(d => {
+            if(d) select.innerHTML += `<option value="${d}">${d}</option>`;
+        });
         atualizarEstatisticas();
     }
 }
@@ -181,30 +183,34 @@ window.iniciarCamera = function() {
         html5.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, async (txt) => {
             const [disc, aulaId, hRef] = txt.split('|');
             await html5.stop();
+            document.getElementById('reader').style.display = 'none';
             
             const agora = new Date();
             const hAtual = agora.getHours().toString().padStart(2,'0') + ":" + agora.getMinutes().toString().padStart(2,'0');
             const atr = calcularAtraso(hRef, hAtual);
             const status = atr > 15 ? "Atraso" : "Presente";
 
-            const { error } = await supabase.from('presencas').insert([{
+            const { error } = await _supabase.from('presencas').insert([{
                 aluno_id: usuarioAtual.id,
                 aula_id: aulaId || null,
                 disciplina: disc,
                 nome_aluno: usuarioAtual.nome,
                 status: status,
-                minutos_atraso: atr,
-                data: new Date().toISOString()
+                minutos_atraso: atr
             }]);
 
             if (!error) {
                 localStorage.setItem(`lastScan_${usuarioAtual.id}`, Date.now().toString());
+                alert("Presença registada com sucesso!");
                 location.reload();
             } else {
                 alert("Erro ao registar: " + error.message);
             }
         });
-    }, () => alert("Ativa o GPS para validar a presença."), { enableHighAccuracy: true });
+    }, () => {
+        radarCont.style.display = 'none';
+        alert("Ativa o GPS para validar a presença.");
+    }, { enableHighAccuracy: true });
 };
 
 // Utilitários
@@ -228,7 +234,13 @@ function verificarBloqueio() {
     if (last) {
         const diff = Math.floor((Date.now() - parseInt(last)) / 60000);
         if (diff < DURACAO_AULA) {
-            document.getElementById('area-scanner').innerHTML = `<div class="bloqueio-wrapper"><div class="bloqueio-inner"><div class="camera-txt">Registado</div><div class="minutos-alerta">Próxima aula em ${DURACAO_AULA-diff} min</div></div></div>`;
+            document.getElementById('area-scanner').innerHTML = `
+                <div class="bloqueio-wrapper">
+                    <div class="bloqueio-inner">
+                        <div class="camera-txt">Registado</div>
+                        <div class="minutos-alerta">Próxima aula em ${DURACAO_AULA-diff} min</div>
+                    </div>
+                </div>`;
             return;
         }
     }
@@ -240,7 +252,6 @@ function verificarBloqueio() {
         </div>`;
 }
 
-// Estatísticas (Chart.js)
 window.atualizarEstatisticas = () => {
     const discF = document.getElementById('filtro-disciplina').value;
     const filtrados = todosRegistos.filter(r => discF === 'todas' || r.disciplina === discF);
@@ -250,10 +261,10 @@ window.atualizarEstatisticas = () => {
 
     document.getElementById('stat-assistido').innerText = Math.max(0, totalAssis);
     document.getElementById('stat-atraso').innerText = totalAtr;
-    desenharGrafico(filtrados, totalAssis, totalAtr);
+    desenharGrafico(totalAssis, totalAtr);
 };
 
-function desenharGrafico(dados, assis, atr) {
+function desenharGrafico(assis, atr) {
     const ctx = document.getElementById('performanceChart').getContext('2d');
     if(chart) chart.destroy();
     
@@ -267,12 +278,16 @@ function desenharGrafico(dados, assis, atr) {
                 borderWidth: 0
             }]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } }
+        }
     });
 }
 
 async function fazerLogout() {
-    await supabase.auth.signOut();
+    await _supabase.auth.signOut();
     location.reload();
 }
 
