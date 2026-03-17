@@ -81,27 +81,23 @@
 </div>
 
 <script>
-// CONFIGURAÇÃO SUPABASE
 const SUPABASE_URL = "https://ckfnrxtnhqjmnizxhmhz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_306amQ_hMAgdqOu3AzZI6A_VPyYzD5U";
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Configurações de Negócio
 const DURACAO_AULA = 50;
 const ESCOLA_LAT = 38.657073; 
 const ESCOLA_LON = -9.058417;
 const RAIO_PERIMETRO = 150;
 
-let chart, usuarioAtual = null, todosRegistos = [], periodoAtual = 'mensal';
+let chart, usuarioAtual = null, todosRegistos = [];
 
-// Inicialização e Auth
 async function checarSessao() {
     const { data: { session } } = await _supabase.auth.getSession();
     if (session) {
         carregarDadosUsuario(session.user);
     } else {
         document.getElementById('tela-login').style.display = 'flex';
-        document.getElementById('interface-aluno').style.display = 'none';
     }
 }
 
@@ -109,12 +105,12 @@ async function fazerLogin() {
     const email = document.getElementById('login-email').value.trim();
     const pass = document.getElementById('login-pass').value;
     const btn = document.getElementById('btn-entrar');
-    
     btn.innerText = "A autenticar...";
+
     const { data, error } = await _supabase.auth.signInWithPassword({ email, password: pass });
 
     if (error) {
-        alert("Erro no Login: " + error.message);
+        alert("Erro: " + error.message);
         btn.innerText = "Entrar";
     } else {
         location.reload();
@@ -122,17 +118,17 @@ async function fazerLogin() {
 }
 
 async function carregarDadosUsuario(authUser) {
-    // Buscar perfil na tabela 'users' vinculada pelo email ou ID
+    // Busca na tabela public.users usando o auth_uid do Supabase Auth
     const { data: user, error } = await _supabase
         .from('users')
         .select('*')
-        .eq('email', authUser.email)
+        .eq('auth_uid', authUser.id)
         .single();
 
     if (user) {
         usuarioAtual = user;
         document.getElementById('nome-perfil').innerText = user.nome;
-        document.getElementById('numero-perfil').innerText = "Nº " + user.numero;
+        document.getElementById('numero-perfil').innerText = "Nº " + (user.numero || 'S/N');
         document.getElementById('avatar').innerText = user.nome.charAt(0).toUpperCase();
         document.getElementById('tela-login').style.display = 'none';
         document.getElementById('interface-aluno').style.display = 'block';
@@ -140,12 +136,13 @@ async function carregarDadosUsuario(authUser) {
         verificarBloqueio();
         carregarHistorico();
     } else {
-        console.error("Usuário não encontrado na tabela 'users'");
+        console.error("Usuário não encontrado em public.users:", error);
+        // Se houver erro de permissão ou tabela, verifique as RLS no Supabase
     }
 }
 
 async function carregarHistorico() {
-    const { data, error } = await _supabase
+    const { data } = await _supabase
         .from('presencas')
         .select('*')
         .eq('aluno_id', usuarioAtual.id)
@@ -153,27 +150,23 @@ async function carregarHistorico() {
 
     if (data) {
         todosRegistos = data;
-        const discSet = new Set(data.map(r => r.disciplina));
+        const discSet = new Set(data.map(r => r.disciplina).filter(d => d));
         const select = document.getElementById('filtro-disciplina');
         select.innerHTML = '<option value="todas">Todas as Disciplinas</option>';
-        discSet.forEach(d => {
-            if(d) select.innerHTML += `<option value="${d}">${d}</option>`;
-        });
+        discSet.forEach(d => select.innerHTML += `<option value="${d}">${d}</option>`);
         atualizarEstatisticas();
     }
 }
 
-// Lógica do Scanner e GPS
 window.iniciarCamera = function() {
     const radarCont = document.getElementById('radar-gps');
     radarCont.style.display = 'block';
     
     navigator.geolocation.getCurrentPosition(async (pos) => {
         const dist = calcularDistancia(pos.coords.latitude, pos.coords.longitude, ESCOLA_LAT, ESCOLA_LON);
-        
         if (dist > RAIO_PERIMETRO) {
             radarCont.style.display = 'none';
-            return alert(`Estás fora da escola (${dist}m). Aproxima-te mais.`);
+            return alert(`Estás fora da escola (${dist}m).`);
         }
 
         radarCont.style.display = 'none';
@@ -181,6 +174,7 @@ window.iniciarCamera = function() {
         
         const html5 = new Html5Qrcode("reader");
         html5.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, async (txt) => {
+            // Esperado no QR: "Nome Disciplina|uuid-da-aula|HH:mm"
             const [disc, aulaId, hRef] = txt.split('|');
             await html5.stop();
             document.getElementById('reader').style.display = 'none';
@@ -192,28 +186,25 @@ window.iniciarCamera = function() {
 
             const { error } = await _supabase.from('presencas').insert([{
                 aluno_id: usuarioAtual.id,
-                aula_id: aulaId || null,
+                aula_id: (aulaId && aulaId.length > 30) ? aulaId : null, // Valida se é UUID
                 disciplina: disc,
                 nome_aluno: usuarioAtual.nome,
                 status: status,
-                minutos_atraso: atr
+                minutos_atraso: atr,
+                data: new Date().toISOString()
             }]);
 
             if (!error) {
                 localStorage.setItem(`lastScan_${usuarioAtual.id}`, Date.now().toString());
-                alert("Presença registada com sucesso!");
                 location.reload();
             } else {
-                alert("Erro ao registar: " + error.message);
+                alert("Erro ao gravar: " + error.message);
             }
         });
-    }, () => {
-        radarCont.style.display = 'none';
-        alert("Ativa o GPS para validar a presença.");
-    }, { enableHighAccuracy: true });
+    }, () => alert("GPS necessário."), { enableHighAccuracy: true });
 };
 
-// Utilitários
+// --- Funções Auxiliares ---
 function calcularDistancia(lat1, lon1, lat2, lon2) {
     const R = 6371e3;
     const dLat = (lat2-lat1)*Math.PI/180;
@@ -255,7 +246,6 @@ function verificarBloqueio() {
 window.atualizarEstatisticas = () => {
     const discF = document.getElementById('filtro-disciplina').value;
     const filtrados = todosRegistos.filter(r => discF === 'todas' || r.disciplina === discF);
-
     const totalAtr = filtrados.reduce((acc, r) => acc + (r.minutos_atraso || 0), 0);
     const totalAssis = (filtrados.length * DURACAO_AULA) - totalAtr;
 
@@ -267,22 +257,13 @@ window.atualizarEstatisticas = () => {
 function desenharGrafico(assis, atr) {
     const ctx = document.getElementById('performanceChart').getContext('2d');
     if(chart) chart.destroy();
-    
     chart = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: ['Assistido', 'Atraso'],
-            datasets: [{
-                data: [assis, atr],
-                backgroundColor: ['#4caf50', '#ff5252'],
-                borderWidth: 0
-            }]
+            datasets: [{ data: [assis, atr], backgroundColor: ['#4caf50', '#ff5252'], borderWidth: 0 }]
         },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom' } }
-        }
+        options: { responsive: true, maintainAspectRatio: false }
     });
 }
 
